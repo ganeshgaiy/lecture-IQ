@@ -3,7 +3,11 @@ from dotenv import load_dotenv
 import os, urllib, requests, logging
 from datetime import datetime
 import whisper
-
+from langchain_openai import ChatOpenAI
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain.prompts import ChatPromptTemplate
+from langchain.chains import LLMChain
+from langchain_core.messages import HumanMessage
 # Load environment variables from .env file
 load_dotenv()
 
@@ -11,9 +15,42 @@ app = Flask(__name__)
 
 # Set the secret key for session management
 app.secret_key = os.getenv('SECRET_KEY')
-
+os.environ["OPENAI_API_KEY"] = os.getenv('OPENAI_SECRET_KEY')
 ZOOM_OAUTH_AUTHORIZE_API = 'https://zoom.us/oauth/authorize?'
 ZOOM_TOKEN_API = 'https://zoom.us/oauth/token'
+
+chat = ChatOpenAI(temperature=0.0, model="gpt-4o")
+
+system_template = "You are now an expert transcript proofreader who has proof read many english texts\
+                    written by both native and non-native english speakers. You will only give me proof read text."
+
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=2000,
+    chunk_overlap=200,
+    length_function=len
+)
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", system_template),
+    ("user", "{text}")
+])
+
+expert_proofread_chain = prompt | chat
+
+def expert_proofread_large_transcript(transcript):
+    # Split the transcript into chunks
+    chunks = text_splitter.split_text(transcript)
+    
+    # Process each chunk
+    proofread_chunks = []
+    for chunk in chunks:
+        human_message = HumanMessage(content=chunk)
+        result = expert_proofread_chain.invoke([human_message])
+        proofread_chunks.append(result.content)
+    
+    # Combine the proofread chunks
+    return " ".join(proofread_chunks)
+
 
 @app.route('/')
 def home():
@@ -155,8 +192,11 @@ def getTranscript():
             with open("result.txt", 'w') as f:
                 f.write(result["text"])
             app.logger.debug(f'transcribe text is {result["text"]}')
-            break
-    return 
+            # Usage
+            transcript = "Your very large transcript goes here..."
+            expertly_proofread_transcript = expert_proofread_large_transcript(transcript)
+            print(expertly_proofread_transcript)
+    return
             
 
 def download_audio_file(url, local_filename):
