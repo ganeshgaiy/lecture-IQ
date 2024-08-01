@@ -181,7 +181,6 @@ def getTranscript():
     app.logger.debug(f'post data is {recordings_json}')
 
     recording_files = recordings_json['recording_files']
-    expertly_proofread_transcript = ''
     for file in recording_files:
         if file.get('file_type')=="M4A":
             print("********",file.get("download_url"))
@@ -191,12 +190,12 @@ def getTranscript():
             result = model.transcribe(local_file)
             with open("result.txt", 'w') as f:
                 f.write(result["text"])
-            # app.logger.debug(f'transcribe text is {result["text"]}')
+            app.logger.debug(f'transcribe text is {result["text"]}')
             # Usage
-            transcript = result["text"]
+            transcript = "Your very large transcript goes here..."
             expertly_proofread_transcript = expert_proofread_large_transcript(transcript)
-            app.logger.debug('transcribed chunks is', expertly_proofread_transcript)
-    return 
+            print(expertly_proofread_transcript)
+    return
             
 
 def download_audio_file(url, local_filename):
