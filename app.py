@@ -24,6 +24,9 @@ chat = ChatOpenAI(temperature=0.0, model="gpt-4o")
 system_template = "You are now an expert transcript proofreader who has proof read many english texts\
                     written by both native and non-native english speakers. You will only give me proof read text."
 
+system_role_questions = "you are now an expert at creating questions from given text such that these questions\
+      will test students on the core concept of the text. You will consider this entire text and generate questions from this text."
+
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=2000,
     chunk_overlap=200,
@@ -35,8 +38,13 @@ prompt = ChatPromptTemplate.from_messages([
     ("user", "{text}")
 ])
 
-expert_proofread_chain = prompt | chat
+question_prompt = ChatPromptTemplate.from_messages([
+    ("system", system_role_questions),
+    ("user", "{transcript}")
+])
 
+expert_proofread_chain = prompt | chat
+question_chain = question_prompt | chat
 def expert_proofread_large_transcript(transcript):
     # Split the transcript into chunks
     chunks = text_splitter.split_text(transcript)
@@ -180,22 +188,23 @@ def getTranscript():
     recordings_json = recordings.json()
     app.logger.debug(f'post data is {recordings_json}')
 
+    expertly_proofread_transcript = ''
     recording_files = recordings_json['recording_files']
     for file in recording_files:
         if file.get('file_type')=="M4A":
             print("********",file.get("download_url"))
             download_link = f'{file.get("download_url")}?access_token={token["access_token"]}&playback_access_token={recordings_json.get("recording_play_passcode")}'
             local_file = download_audio_file(download_link, "local_file.m4a") 
-            model = whisper.load_model("small")
+            model = whisper.load_model("base")
             result = model.transcribe(local_file)
             with open("result.txt", 'w') as f:
                 f.write(result["text"])
-            app.logger.debug(f'transcribe text is {result["text"]}')
             # Usage
-            transcript = "Your very large transcript goes here..."
+            transcript = result["text"]
             expertly_proofread_transcript = expert_proofread_large_transcript(transcript)
-            print(expertly_proofread_transcript)
-    return
+            app.logger.debug(f'transcribe text is {expertly_proofread_transcript}')
+            session['proofread_transcript'] = expertly_proofread_transcript
+    return redirect(url_for('manual_proofread'))
             
 
 def download_audio_file(url, local_filename):
@@ -214,6 +223,41 @@ def download_audio_file(url, local_filename):
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
     return local_filename
+
+@app.route('/generate_questions', methods=['POST'])
+def generate_questions():
+    # data = request.get_json()
+    # app.logger.debug(f'data is {data}')
+    # transcript = data.get('transcript','')
+    # result = question_chain.invoke([HumanMessage(content=transcript)])
+    # app.logger.debug(f'result is {result}')
+    # return 
+    data = request.get_json()
+    if not data or 'transcript' not in data:
+        app.logger.debug('No transcript data received')
+        return 'Bad Request', 400
+
+    transcript = data['transcript']
+    app.logger.debug(f'Transcript received: {transcript}')
+    human_msg = HumanMessage(content=transcript)
+    result = question_chain.invoke([human_msg])
+    app.logger.debug(f'Result is: {result}')
+    
+    session["questions"] = result.content
+    return {'questions': result.content}, 200 
+
+@app.route('/print_pdf')
+def print_pdf():
+    questions = session.get('questions', '')
+    return render_template('questions.html', questions=questions)
+
+@app.route('/manual_proofread')
+def manual_proofread():
+    proofread_transcript = session.get('proofread_transcript', None)
+    if proofread_transcript:
+        return render_template("manual_proofread.html", transcript=proofread_transcript)
+    return redirect(url_for('getAudioTranscript'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)
