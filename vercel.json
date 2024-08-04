@@ -1,16 +1,18 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "api/index.py",
-        "use": "@vercel/python"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/(.*)",
-        "dest": "/api/index.py"
-      }
-    ]
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.py"
+    }
+  ],
+  "scripts": {
+    "postinstall": "pip install torch torchvision torchaudio -f https://download.pytorch.org/whl/torch_stable.html"
   }
-  
+}
