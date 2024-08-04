@@ -245,7 +245,7 @@ def generate_questions():
     
     session["questions"] = result.content
     return {'questions': result.content}, 200 
-
+#hey
 @app.route('/print_pdf')
 def print_pdf():
     questions = session.get('questions', '')
